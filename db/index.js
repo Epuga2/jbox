@@ -49,29 +49,27 @@ async function updateUser (id, fields = {}) {
     }
 };
 
-async function createPost({
-    authorId,
-    title, 
-    content
-}) {
+async function createPost({ authorId, title, content }) {
     try {
-        await client.query(`
+
+       const { rows } =  await client.query(`
         INSERT INTO posts("authorId", title, content)
         VALUES ($1, $2, $3)
         RETURNING *
-        );
-        `)
+        ;`,[authorId, title,content]);
+
+        return rows;
     }catch(error){
         throw error;
     }
 };
 
-async function updatePost({id, fields = {}}){
+async function updatePost(id, fields = {}){
     const  setString = Object.keys(fields).map(
         (key, index) => `"${key}"=$${index+1}`
     ).join(', ');
 
-    if (setString ===0){
+    if (setString.length ===0){
         return;
     }
     try{
@@ -116,23 +114,41 @@ async function updatePost({id, fields = {}}){
 
 async function getAllPosts(){
     try{
-
+        console.log("getAllPosts")
+        const { rows } = await client.query(`
+        SELECT * 
+        FROM posts;`)
+        return rows;
     }catch(error){
+
         throw error;
     }
 };
 
-async function getPostsByUser(){
+async function getPostsByUser(userId){
     try{
-
+        console.log("getting posts by user")
+        const { rows } = await client.query(`
+        SELECT * FROM posts
+        WHERE "authorId" = $1;`,[userId])
+        return rows;
     } catch(error){
         throw error;
     }
 };
 
-async function getUserById(){
+async function getUserById(userId){
     try{
-
+        console.log("getting posts by id")
+        const { rows } = await client.query(`
+        SELECT id, username, name, location, active FROM users
+        WHERE id = $1;`, [userId]);
+        if (rows.length === 0) {
+            return null;
+        }
+        const posts = await getPostsByUser();
+        rows["posts"] = posts;
+        return rows;
     } catch(error){
         throw error;
     }
