@@ -146,13 +146,99 @@ async function getUserById(userId){
         if (rows.length === 0) {
             return null;
         }
-        const posts = await getPostsByUser();
+        const posts = await getPostsByUser(userId);
         rows["posts"] = posts;
         return rows;
     } catch(error){
         throw error;
     }
 };
+async function createTags(tagList) {
+
+    if (tagList.length === 0){
+        return;
+    }
+    const insertValues = tagList.map((_,index) => `$${index +1}`).join('), (');
+
+    const selectValues = tagList.map((_, index) => `$${index+1}`).join(', ');
+
+    
+    try{
+        await client.query(`
+        INSERT INTO tags(name)
+        VALUES (${insertValues})
+        ON CONFLICT (name) DO NOTHING;
+        `, tagList);
+
+        const { rows } = await client.query(`
+        SELECT * FROM tags
+        WHERE name
+        IN (${selectValues});
+        `,tagList )
+
+    return rows;
+    }catch(error){ 
+        throw error
+    }
+}
+async function createPostTag(postId, tagId){
+    try{
+        await client.query(`
+        INSERT INTO post_tags("postId", "tagId")
+        VALUES ($1, $2)
+        ON CONFLICT ("postId", "tagId") DO NOTHING;
+        `, [postId, tagId])
+    }catch (error){
+        throw error;
+    }
+}
+async function addTagsToPost(postId, tagList){
+
+    try{
+        const createPostTagPromises = tagList.map(
+            tag => createPostTag(postId,tag.id)
+        );
+        await Promise.all(createPostTagPromises);
+
+        return await getPostById(postId)
+    }catch(error){
+        throw error;
+    }
+};
+async function createPostTagPromises(){
+    return;
+}
+async function getPostById(postId) {
+    try {
+      const { rows: [ post ]  } = await client.query(`
+        SELECT *
+        FROM posts
+        WHERE id=$1;
+      `, [postId]);
+  
+      const { rows: tags } = await client.query(`
+        SELECT tags.*
+        FROM tags
+        JOIN post_tags ON tags.id=post_tags."tagId"
+        WHERE post_tags."postId"=$1;
+      `, [postId])
+  
+      const { rows: [author] } = await client.query(`
+        SELECT id, username, name, location
+        FROM users
+        WHERE id=$1;
+      `, [post.authorId])
+  
+      post.tags = tags;
+      post.author = author;
+  
+      delete post.authorId;
+  
+      return post;
+    } catch (error) {
+      throw error;
+    }
+  }
 module.exports = {
     client,
     getAllUsers,
@@ -163,4 +249,5 @@ module.exports = {
     getAllPosts,
     getPostsByUser,
     getUserById,
+    createTags,
 }
